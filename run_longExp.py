@@ -28,8 +28,9 @@ if __name__ == '__main__':
     parser.add_argument('--freq', type=str, default='h',
                         help='freq for time features encoding, options:[s:secondly, t:minutely, h:hourly, d:daily, b:business days, w:weekly, m:monthly], you can also use more detailed freq like 15min or 3h')
     parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='location of model checkpoints')
-    parser.add_argument('--exo', default=True, action=argparse.BooleanOptionalAction, help='exogenous variables')
-    parser.add_argument('--exo_future', default=True, action=argparse.BooleanOptionalAction, help='exogenous variables for future time steps')
+    
+    parser.add_argument('--exo', default=True, action=argparse.BooleanOptionalAction, help='availability of exogenous variables history')
+    parser.add_argument('--exo_future', default=True, action=argparse.BooleanOptionalAction, help='availability of exogenous variables forecast')
 
     # forecasting task
     parser.add_argument('--seq_len', type=int, default=96, help='input sequence length')
@@ -53,7 +54,7 @@ if __name__ == '__main__':
     parser.add_argument('--kernel_size', type=int, default=25, help='decomposition-kernel')
     parser.add_argument('--individual', type=int, default=0, help='individual head; True 1 False 0')
 
-    # Formers 
+    # Transformers 
     parser.add_argument('--embed_type', type=int, default=0, help='0: default 1: value embedding + temporal embedding + positional embedding 2: value embedding + temporal embedding 3: value embedding + positional embedding 4: value embedding')
     parser.add_argument('--enc_in', type=int, default=7, help='encoder input size') # DLinear with --individual, use this hyperparameter as the number of channels
     parser.add_argument('--dec_in', type=int, default=7, help='decoder input size')
@@ -108,8 +109,8 @@ if __name__ == '__main__':
     # assume if exo_future is True, exo is also True
     if args.exo_future:
         assert args.exo, 'exo_future is True, exo should also be True'
-    if args.exo_future or args.exo: #not sure if this is correct
-        assert args.features != 'S' 
+    # if args.exo_future or args.exo:
+    #     assert args.features != 'S' 
         
     if args.use_gpu and args.use_multi_gpu:
         args.dvices = args.devices.replace(' ', '')
@@ -130,7 +131,7 @@ if __name__ == '__main__':
     if args.is_training:
         for ii in range(args.itr):
             # setting record of experiments
-            setting = '{}_{}_{}_ft{}_OT{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_{}_ind{}_rnd{}'.format(
+            setting = '{}_{}_{}_ft{}_OT{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_{}_ind{}_rnd{}_exo{}_exo_future{}'.format(
                 args.model_id,
                 args.model,
                 args.data,
@@ -150,7 +151,9 @@ if __name__ == '__main__':
                 args.des,
                 ii,
                 args.individual,
-                args.random_seed)
+                args.random_seed,
+                args.exo,
+                args.exo_future)
 
             exp = Exp(args)  # set experiments
             print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
@@ -166,26 +169,29 @@ if __name__ == '__main__':
             torch.cuda.empty_cache()
     else:
         ii = 0
-        setting = '{}_{}_{}_ft{}_OT{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_{}_ind{}_rnd{}'.format(args.model_id,
-                                                                                                    args.model,
-                                                                                                    args.data,
-                                                                                                    args.features,
-                                                                                                    args.target,
-                                                                                                    args.seq_len,
-                                                                                                    args.label_len,
-                                                                                                    args.pred_len,
-                                                                                                    args.d_model,
-                                                                                                    args.n_heads,
-                                                                                                    args.e_layers,
-                                                                                                    args.d_layers,
-                                                                                                    args.d_ff,
-                                                                                                    args.factor,
-                                                                                                    args.embed,
-                                                                                                    args.distil,
-                                                                                                    args.des, 
-                                                                                                    ii,
-                                                                                                    args.individual,
-                                                                                                    args.random_seed)
+        setting = '{}_{}_{}_ft{}_OT{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_{}_ind{}_rnd{}_exo{}_exo_future{}'.format(
+            args.model_id,
+            args.model,
+            args.data,
+            args.features,
+            args.target,
+            args.seq_len,
+            args.label_len,
+            args.pred_len,
+            args.d_model,
+            args.n_heads,
+            args.e_layers,
+            args.d_layers,
+            args.d_ff,
+            args.factor,
+            args.embed,
+            args.distil,
+            args.des, 
+            ii,
+            args.individual,
+            args.random_seed,
+            args.exo,
+            args.exo_future)
 
         exp = Exp(args)  # set experiments
         print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
