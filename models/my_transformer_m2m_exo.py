@@ -79,10 +79,7 @@ class Model(nn.Module):
 
         # Optional embedding of exo forecast (exo_future)
         if self.use_exo_future:
-            # print("exo_future shape:", exo_future.shape)  # Debugging line
             exo_token = self.exo_embedder(exo_future.permute(0, 2, 1))#.unsqueeze(1)  # new: [B, 1, Exo_len]
-            # print("exo_token shape:", exo_token.shape)  # Debugging line
-            # print("x shape:", x.shape)  # Debugging line
             # exo_token = exo_token.squeeze(-1).unsqueeze(1)          # [B, 1, d_model]
             x = torch.cat([exo_token, x], dim=1) 
 
