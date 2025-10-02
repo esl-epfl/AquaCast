@@ -1,6 +1,6 @@
 from data_provider.data_factory import data_provider
 from exp.exp_basic import Exp_Basic
-from models import Transformer, PatchTST, my_transformer, my_transformer_m2m, my_transformer_m2m_exo
+from models import PatchTST, my_transformer_m2m, my_transformer_m2m_exo
 from utils.tools import EarlyStopping, adjust_learning_rate, visual, test_params_flop, visual_plot, visual_rain, visual_acc
 from utils.metrics import metric
 
@@ -21,50 +21,13 @@ warnings.filterwarnings('ignore')
 
 from dtaidistance import dtw
 
-def compute_dtw(outputs, batch_y):
-    """
-    Computes the DTW-based hit rate for each batch element and signal.
-
-    Parameters:
-    - outputs: numpy array of shape [batch, signal_length, signal_number] (predictions)
-    - batch_y: numpy array of shape [batch, signal_length, signal_number] (ground-truth)
-    - margin: float, absolute tolerance for hit classification
-
-    Returns:
-    - hit_rates: numpy array of shape [batch, signal_number], percentage of hits per batch-signal pair
-    """
-    batch_size, signal_length, num_signals = outputs.shape
-    errors = np.zeros((batch_size, num_signals))  # Store hit rate per batch-signal
-
-    for b in range(batch_size):
-        for s in range(num_signals):
-            # Get the time series for the current batch element and signal
-            pred_signal = outputs[b, :, s]
-            true_signal = batch_y[b, :, s]
-
-            # Compute DTW warping path
-            path = dtw.warping_path(pred_signal, true_signal)
-
-            # Extract aligned pairs
-            aligned_preds = np.array([pred_signal[p[0]] for p in path])
-            aligned_truth = np.array([true_signal[p[1]] for p in path])
-
-            # Compute error
-            error = np.mean(np.abs(aligned_preds - aligned_truth))  # Mean Absolute Error
-            # error = np.mean((aligned_preds - aligned_truth) ** 2)  # Mean Squared Error
-            errors[b, s] = error  # Store result
-
-    return errors
-
 class Exp_Main_exo(Exp_Basic):
     def __init__(self, args):
         super(Exp_Main_exo, self).__init__(args)
 
     def _build_model(self):
         model_dict = {
-            'Transformer': Transformer,
             'PatchTST': PatchTST,
-            'MyTransformer': my_transformer,
             'MyTransformer_M2M': my_transformer_m2m,
             'MyTransformer_M2M_exo': my_transformer_m2m_exo,
         }
@@ -88,6 +51,41 @@ class Exp_Main_exo(Exp_Basic):
     def _select_criterion(self):
         criterion = nn.MSELoss()
         return criterion
+    
+    def compute_dtw(outputs, batch_y):
+        """
+        Computes the DTW-based hit rate for each batch element and signal.
+
+        Parameters:
+        - outputs: numpy array of shape [batch, signal_length, signal_number] (predictions)
+        - batch_y: numpy array of shape [batch, signal_length, signal_number] (ground-truth)
+        - margin: float, absolute tolerance for hit classification
+
+        Returns:
+        - hit_rates: numpy array of shape [batch, signal_number], percentage of hits per batch-signal pair
+        """
+        batch_size, signal_length, num_signals = outputs.shape
+        errors = np.zeros((batch_size, num_signals))  # Store hit rate per batch-signal
+
+        for b in range(batch_size):
+            for s in range(num_signals):
+                # Get the time series for the current batch element and signal
+                pred_signal = outputs[b, :, s]
+                true_signal = batch_y[b, :, s]
+
+                # Compute DTW warping path
+                path = dtw.warping_path(pred_signal, true_signal)
+
+                # Extract aligned pairs
+                aligned_preds = np.array([pred_signal[p[0]] for p in path])
+                aligned_truth = np.array([true_signal[p[1]] for p in path])
+
+                # Compute error
+                error = np.mean(np.abs(aligned_preds - aligned_truth))  # Mean Absolute Error
+                # error = np.mean((aligned_preds - aligned_truth) ** 2)  # Mean Squared Error
+                errors[b, s] = error  # Store result
+
+        return errors
 
     def vali(self, vali_data, vali_loader, criterion):
         total_loss = []
@@ -107,26 +105,14 @@ class Exp_Main_exo(Exp_Basic):
                 dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
                 dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
                 # encoder - decoder
-                if self.args.use_amp:
-                    with torch.cuda.amp.autocast():
-                        if 'Linear' in self.args.model or 'TST' in self.args.model:
-                            outputs = self.model(batch_x)
-                        else:
-                            if self.args.output_attention:
-                                outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
-                            else:
-                                outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-                else:
-                    if 'Linear' in self.args.model or 'TST' in self.args.model or 'My' in self.args.model:
-                        if self.args.exo_future:
-                            outputs = self.model(batch_x, exo_future)
-                        else:
-                            outputs = self.model(batch_x)
+                if 'TST' in self.args.model or 'My' in self.args.model:
+                    if self.args.exo_future:
+                        outputs = self.model(batch_x, exo_future)
                     else:
-                        if self.args.output_attention:
-                            outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
-                        else:
-                            outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                        outputs = self.model(batch_x)
+                else:
+                    print('model is not implemented')
+                    break
                 f_dim = -1 if self.args.features == 'MS' else 0
                 outputs = outputs[:, -self.args.pred_len:, f_dim:]
                 batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
@@ -140,7 +126,7 @@ class Exp_Main_exo(Exp_Basic):
                         batch_y = torch.cat((batch_y, target), axis=-1)
                     else:
                         pass
-                    assert batch_y.shape[-1] == outputs.shape[-1], f"batch_y shape: {batch_y.shape}, outputs shape: {outputs.shape}"
+                    assert batch_y.shape[-1] == outputs.shape[-1], f"batch_y shape: {batch_y.shape}, outputs shape: {outputs.shape}, shapes do not match"
 
 
                 pred = outputs.detach().cpu()
@@ -210,53 +196,33 @@ class Exp_Main_exo(Exp_Basic):
                 dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
 
                 # encoder - decoder
-                if self.args.use_amp:
-                    with torch.cuda.amp.autocast():
-                        if 'Linear' in self.args.model or 'TST' in self.args.model:
-                            outputs = self.model(batch_x)
-                        else:
-                            if self.args.output_attention:
-                                outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
-                            else:
-                                outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-
-                        f_dim = -1 if self.args.features == 'MS' else 0
-                        outputs = outputs[:, -self.args.pred_len:, f_dim:]
-                        batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
-                        loss = criterion(outputs, batch_y)
-                        train_loss.append(loss.item())
-                else:
-                    if 'Linear' in self.args.model or 'TST' in self.args.model or 'My' in self.args.model:
-                        if self.args.exo_future:
-                            outputs = self.model(batch_x, exo_future)
-                        else:
-                            outputs = self.model(batch_x)
+                if 'TST' in self.args.model or 'My' in self.args.model:
+                    if self.args.exo_future:
+                        outputs = self.model(batch_x, exo_future)
                     else:
-                        if self.args.output_attention:
-                            outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
-                            
-                        else:
-                            outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark, batch_y)
-                    # print(outputs.shape,batch_y.shape)
-                    f_dim = -1 if self.args.features == 'MS' else 0
-                    outputs = outputs[:, -self.args.pred_len:, f_dim:]
-                    batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
-                    
-                    # remove index -2 and -3 if args.exo_future and args.exo are True, but keep the index -1
-                    # print(self.args.exo_future, self.args.exo)
-                    if self.args.features == 'M':
-                        target = batch_y[:, :, -1:]
-                        if self.args.exo:
-                            batch_y = batch_y[:, :, :-2]
-                            # concatenate the target to the batch_y
-                            batch_y = torch.cat((batch_y, target), axis=-1)
-                        else:
-                            pass
-                        assert batch_y.shape[-1] == outputs.shape[-1], f"batch_y shape: {batch_y.shape}, outputs shape: {outputs.shape}, exo {self.args.exo}, exo_future {self.args.exo_future}"
-                    
-                    # loss
-                    loss = criterion(outputs, batch_y)
-                    train_loss.append(loss.item())
+                        outputs = self.model(batch_x)
+                else:
+                    print('model is not implemented')
+                    break
+                
+                f_dim = -1 if self.args.features == 'MS' else 0
+                outputs = outputs[:, -self.args.pred_len:, f_dim:]
+                batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
+                
+                # remove index -2 and -3 if args.exo_future and args.exo are True, but keep the index -1
+                if self.args.features == 'M':
+                    target = batch_y[:, :, -1:]
+                    if self.args.exo:
+                        batch_y = batch_y[:, :, :-2]
+                        # concatenate the target to the batch_y
+                        batch_y = torch.cat((batch_y, target), axis=-1)
+                    else:
+                        pass
+                    assert batch_y.shape[-1] == outputs.shape[-1], f"batch_y shape: {batch_y.shape}, outputs shape: {outputs.shape}, exo {self.args.exo}, exo_future {self.args.exo_future}, shapes do not match"
+                
+                # loss
+                loss = criterion(outputs, batch_y)
+                train_loss.append(loss.item())
 
                 if (i + 1) % 100 == 0:
                     print("\titers: {0}, epoch: {1} | loss: {2:.7f}".format(i + 1, epoch + 1, loss.item()))
@@ -303,8 +269,8 @@ class Exp_Main_exo(Exp_Basic):
         best_model_path = path + '/' + 'checkpoint.pth'
         self.model.load_state_dict(torch.load(best_model_path))
 
-        #train-valid loss plot
-        visual_plot(train_plot, valid_plot, test_plot, os.path.join(folder_path, 'training_plot_mse' + '.pdf'))
+        # #train-valid loss plot
+        # visual_plot(train_plot, valid_plot, test_plot, os.path.join(folder_path, 'training_plot_mse' + '.pdf'))
 
         return self.model
 
@@ -319,7 +285,7 @@ class Exp_Main_exo(Exp_Basic):
 
         if test:
             print('loading model')
-            self.model.load_state_dict(torch.load(os.path.join('/home/abgo/SimpleDL/PatchTST/PatchTST_supervised/checkpoints/' + setting, 'checkpoint.pth'), map_location='cuda:0'))
+            self.model.load_state_dict(torch.load(os.path.join('./checkpoints/' + setting, 'checkpoint.pth'), map_location='cuda:0'))
 
         criterion = [self._select_criterion()]
         criterion.append(nn.L1Loss())
@@ -347,27 +313,14 @@ class Exp_Main_exo(Exp_Basic):
                 dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
                 dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
                 # encoder - decoder
-                if self.args.use_amp:
-                    with torch.cuda.amp.autocast():
-                        if 'Linear' in self.args.model or 'TST' in self.args.model:
-                            outputs = self.model(batch_x)
-                        else:
-                            if self.args.output_attention:
-                                outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
-                            else:
-                                outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-                else:
-                    if 'Linear' in self.args.model or 'TST' in self.args.model or 'My' in self.args.model:
-                        if self.args.exo_future:
-                            outputs = self.model(batch_x, exo_future)
-                        else:
-                            outputs = self.model(batch_x)
+                if 'TST' in self.args.model or 'My' in self.args.model:
+                    if self.args.exo_future:
+                        outputs = self.model(batch_x, exo_future)
                     else:
-                        if self.args.output_attention:
-                            outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
-
-                        else:
-                            outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                        outputs = self.model(batch_x)
+                else:
+                    print('model is not implemented')   
+                    break
 
                 f_dim = -1 if self.args.features == 'MS' else 0
                 # print(outputs.shape,batch_y.shape)
@@ -383,7 +336,7 @@ class Exp_Main_exo(Exp_Basic):
                         batch_y = torch.cat((batch_y, target), axis=-1)
                     else:
                         pass
-                    assert batch_y.shape[-1] == outputs.shape[-1], f"batch_y shape: {batch_y.shape}, outputs shape: {outputs.shape}"
+                    assert batch_y.shape[-1] == outputs.shape[-1], f"batch_y shape: {batch_y.shape}, outputs shape: {outputs.shape}, shapes do not match"
 
                 mse_label = criterion[0](outputs[0, :, -1], batch_y[0, :, -1])
                 mae_label = criterion[1](outputs[0, :, -1], batch_y[0, :, -1])
@@ -471,7 +424,7 @@ class Exp_Main_exo(Exp_Basic):
 
         if test:
             print('loading model')
-            self.model.load_state_dict(torch.load(os.path.join('/home/abgo/SimpleDL/PatchTST/PatchTST_supervised/checkpoints/' + setting, 'checkpoint.pth'), map_location='cuda:0'))
+            self.model.load_state_dict(torch.load(os.path.join('./checkpoints/' + setting, 'checkpoint.pth'), map_location='cuda:0'))
 
         criterion = [self._select_criterion()]
         criterion.append(nn.L1Loss())
@@ -508,27 +461,14 @@ class Exp_Main_exo(Exp_Basic):
                 dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
                 dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
                 # encoder - decoder
-                if self.args.use_amp:
-                    with torch.cuda.amp.autocast():
-                        if 'Linear' in self.args.model or 'TST' in self.args.model:
-                            outputs = self.model(batch_x)
-                        else:
-                            if self.args.output_attention:
-                                outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
-                            else:
-                                outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-                else:
-                    if 'Linear' in self.args.model or 'TST' in self.args.model or 'My' in self.args.model:
-                        if self.args.exo_future:
-                            outputs = self.model(batch_x, exo_future)
-                        else:
-                            outputs = self.model(batch_x)
+                if 'TST' in self.args.model or 'My' in self.args.model:
+                    if self.args.exo_future:
+                        outputs = self.model(batch_x, exo_future)
                     else:
-                        if self.args.output_attention:
-                            outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
-
-                        else:
-                            outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                        outputs = self.model(batch_x)
+                else:
+                    print('model is not implemented')   
+                    break
 
                 f_dim = -1 if self.args.features == 'MS' else 0
                 # print(outputs.shape,batch_y.shape)
@@ -549,10 +489,6 @@ class Exp_Main_exo(Exp_Basic):
                 outputs = outputs[:, -self.args.pred_len:, f_dim:]
                 batch_y = batch_y[:, -self.args.pred_len:, f_dim:]
                 # batch_x = batch_x[:, -self.args.pred_len:, 0:]
-                # print(outputs.shape,batch_y.shape)
-
-                # mse_label = criterion[0](outputs[0, :, -1], batch_y[0, :, -1])
-                # mae_label = criterion[1](outputs[0, :, -1], batch_y[0, :, -1])
 
                 outputs = outputs.detach().cpu().numpy()
                 batch_y = batch_y.detach().cpu().numpy()
@@ -576,12 +512,12 @@ class Exp_Main_exo(Exp_Basic):
                         batch_y = np.concatenate((batch_y, target), axis=-1)
                     else:
                         pass
-                    assert batch_y.shape[-1] == outputs.shape[-1], f"batch_y shape: {batch_y.shape}, outputs shape: {outputs.shape}"
+                    assert batch_y.shape[-1] == outputs.shape[-1], f"batch_y shape: {batch_y.shape}, outputs shape: {outputs.shape}, shapes do not match"
 
                 
                 # Metrics
-                
-                DTW_error_per_signal = compute_dtw(outputs, batch_y)
+                # DTW-based hit rate
+                DTW_error_per_signal = self.compute_dtw(outputs, batch_y)
             
                 nice_signals = DTW_error_per_signal < mse_threshold
                 
@@ -639,9 +575,7 @@ class Exp_Main_exo(Exp_Basic):
                         arr = np.array([gt, pd, rn], dtype=object)
                         np.save(path.replace('.pdf', '.npy'), arr)
                         visual_rain(gt, pd, rn, 'MSE', mse, path) 
-                #         break
-                #     break
-                # break
+
         all_c = cls_c + far_c
         print(all_c)
         print(cls_c)
@@ -698,7 +632,7 @@ class Exp_Main_exo(Exp_Basic):
 
         if test:
             print('loading model')
-            self.model.load_state_dict(torch.load(os.path.join('/home/abgo/SimpleDL/PatchTST/PatchTST_supervised/checkpoints/' + setting, 'checkpoint.pth'), map_location='cuda:0'))
+            self.model.load_state_dict(torch.load(os.path.join('./checkpoints/' + setting, 'checkpoint.pth'), map_location='cuda:0'))
 
         criterion = [self._select_criterion()]
         criterion.append(nn.L1Loss())
@@ -735,28 +669,14 @@ class Exp_Main_exo(Exp_Basic):
                 # decoder input
                 dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
                 dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
-                # encoder - decoder
-                if self.args.use_amp:
-                    with torch.cuda.amp.autocast():
-                        if 'Linear' in self.args.model or 'TST' in self.args.model:
-                            outputs = self.model(batch_x)
-                        else:
-                            if self.args.output_attention:
-                                outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
-                            else:
-                                outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-                else:
-                    if 'Linear' in self.args.model or 'TST' in self.args.model or 'My' in self.args.model:
-                        if self.args.exo_future:
-                            outputs = self.model(batch_x, exo_future)
-                        else:
-                            outputs = self.model(batch_x)
+                if 'TST' in self.args.model or 'My' in self.args.model:
+                    if self.args.exo_future:
+                        outputs = self.model(batch_x, exo_future)
                     else:
-                        if self.args.output_attention:
-                            outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
-
-                        else:
-                            outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                        outputs = self.model(batch_x)
+                else:
+                    print('model is not implemented')   
+                    break
 
                 f_dim = -1 if self.args.features == 'MS' else 0
 
@@ -773,12 +693,12 @@ class Exp_Main_exo(Exp_Basic):
                         batch_y = torch.cat((batch_y, target), axis=-1)
                     else:
                         pass
-                    assert batch_y.shape[-1] == outputs.shape[-1], f"batch_y shape: {batch_y.shape}, outputs shape: {outputs.shape}, exo {self.args.exo}, exo_future {self.args.exo_future}"
+                    assert batch_y.shape[-1] == outputs.shape[-1], f"batch_y shape: {batch_y.shape}, outputs shape: {outputs.shape}, exo {self.args.exo}, exo_future {self.args.exo_future}, shapes do not match"
 
                 outputs = outputs.detach().cpu().numpy()
                 batch_y = batch_y.detach().cpu().numpy()
                 
-                DTW_error_per_signal = compute_dtw(outputs, batch_y)
+                DTW_error_per_signal = self.compute_dtw(outputs, batch_y)
                 print(DTW_error_per_signal.shape)
 
                 for i, th in enumerate(mse_threshold):
@@ -788,8 +708,6 @@ class Exp_Main_exo(Exp_Basic):
                     s = nice_signals.shape[1]
                     cls_c[i] += nice_signals.sum(axis=0)
                     far_c[i] += b - nice_signals.sum(axis=0)
-                
-                # break
             
 
         all_c = [c + f for c, f in zip(cls_c, far_c)]
@@ -809,24 +727,11 @@ class Exp_Main_exo(Exp_Basic):
             path_vec = os.path.join(folder_path, f'accuracy_error_plot{i}.npy')
             print(path_fig)
             acc_i = [cls_i[i] for cls_i in cls_2all]
-            # acc.append(acc_i)
             auc, auc_normalized = visual_acc(mse_threshold, acc_i, path_fig)
             auc_list.append(auc)
             auc_normalized_list.append(auc_normalized)
-            # np.save(path_vec, np.array([mse_threshold, acc]))
             np.save(path_vec, np.array([mse_threshold, acc_i]))
-            # print('auc:', auc)
-            # print('auc_normalized:', auc_normalized)
-        # print('acc:', acc)
         
-
-        # return
-
-        # i = -1
-        # acc_i = [cls_i[i] for cls_i in cls_2all]
-        
-        # auc, auc_normalized = visual_acc(mse_threshold, acc_i, path_fig)
-        # np.save(path_vec, np.array([mse_threshold, acc_i]))
         
         f = open("result.txt", 'a')
         f.write('Test End Time: {}\n'.format(time.strftime("%Y.%m.%d,%H:%M:%S", time.localtime())))
@@ -843,61 +748,8 @@ class Exp_Main_exo(Exp_Basic):
         return
 
     # def predict(self, setting, load=False):
-    #     pred_data, pred_loader = self._get_data(flag='pred')
 
-    #     if load:
-    #         path = os.path.join(self.args.checkpoints, setting)
-    #         best_model_path = path + '/' + 'checkpoint.pth'
-    #         self.model.load_state_dict(torch.load(best_model_path))
-
-    #     preds = []
-
-    #     self.model.eval()
-    #     with torch.no_grad():
-    #         for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(pred_loader):
-    #             if slef.args.exo_future:
-    #                 batch_x, exo_future = batch_x
-    #                 exo_future = exo_future.float().to(self.device)
-    #             batch_x = batch_x.float().to(self.device)
-    #             batch_y = batch_y.float()
-    #             batch_x_mark = batch_x_mark.float().to(self.device)
-    #             batch_y_mark = batch_y_mark.float().to(self.device)
-
-    #             # decoder input
-    #             dec_inp = torch.zeros([batch_y.shape[0], self.args.pred_len, batch_y.shape[2]]).float().to(batch_y.device)
-    #             dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
-    #             # encoder - decoder
-    #             if self.args.use_amp:
-    #                 with torch.cuda.amp.autocast():
-    #                     if 'Linear' in self.args.model or 'TST' in self.args.model:
-    #                         outputs = self.model(batch_x)
-    #                     else:
-    #                         if self.args.output_attention:
-    #                             outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
-    #                         else:
-    #                             outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-    #             else:
-    #                 if 'Linear' in self.args.model or 'TST' in self.args.model or 'My' in self.args.model:
-    #                     if self.args.exo_future:
-    #                         outputs = self.model(batch_x, exo_future)
-    #                     else:
-    #                         outputs = self.model(batch_x)
-    #                 else:
-    #                     if self.args.output_attention:
-    #                         outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
-    #                     else:
-    #                         outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-    #             pred = outputs.detach().cpu().numpy()  # .squeeze()
-    #             preds.append(pred)
-
-    #     preds = np.array(preds)
-    #     preds = preds.reshape(-1, preds.shape[-2], preds.shape[-1])
-
-    #     # result save
-    #     folder_path = './results/' + setting + '/'
-    #     if not os.path.exists(folder_path):
-    #         os.makedirs(folder_path)
-
-    #     np.save(folder_path + 'real_prediction.npy', preds)
+    # TODO: implement predict method
+    # no ground truth for prediction
 
     #     return
