@@ -1,6 +1,6 @@
 from data_provider.data_factory import data_provider
 from exp.exp_basic import Exp_Basic
-from models import Informer, Autoformer, Transformer, DLinear, Linear, NLinear, PatchTST, my_transformer, my_conv_linear
+from models import Transformer, PatchTST, my_transformer
 from utils.tools import EarlyStopping, adjust_learning_rate, visual, test_params_flop, visual_plot, visual_rain, visual_acc
 from utils.metrics import metric
 
@@ -20,42 +20,6 @@ import numpy as np
 warnings.filterwarnings('ignore')
 
 from dtaidistance import dtw
-
-def compute_dtw_hit_rate(outputs, batch_y, margin=0.05):
-    """
-    Computes the DTW-based hit rate for each batch element and signal.
-
-    Parameters:
-    - outputs: numpy array of shape [batch, signal_length, signal_number] (predictions)
-    - batch_y: numpy array of shape [batch, signal_length, signal_number] (ground-truth)
-    - margin: float, absolute tolerance for hit classification
-
-    Returns:
-    - hit_rates: numpy array of shape [batch, signal_number], percentage of hits per batch-signal pair
-    """
-    batch_size, signal_length, num_signals = outputs.shape
-    hit_rates = np.zeros((batch_size, num_signals))  # Store hit rate per batch-signal
-
-    for b in range(batch_size):
-        for s in range(num_signals):
-            # Get the time series for the current batch element and signal
-            pred_signal = outputs[b, :, s]
-            true_signal = batch_y[b, :, s]
-
-            # Compute DTW warping path
-            path = dtw.warping_path(pred_signal, true_signal)
-
-            # Extract aligned pairs
-            aligned_preds = np.array([pred_signal[p[0]] for p in path])
-            aligned_truth = np.array([true_signal[p[1]] for p in path])
-
-            # Compute binary hit flag (1 if within margin, 0 otherwise)
-            hits = np.abs(aligned_preds - aligned_truth) <= margin
-            hit_rate = np.mean(hits) #* 100  # Convert to percentage
-
-            hit_rates[b, s] = hit_rate  # Store result
-
-    return hit_rates
 
 def compute_dtw(outputs, batch_y):
     """
@@ -98,16 +62,10 @@ class Exp_Main(Exp_Basic):
 
     def _build_model(self):
         model_dict = {
-            'Autoformer': Autoformer,
             'Transformer': Transformer,
-            'Informer': Informer,
-            'DLinear': DLinear,
-            'NLinear': NLinear,
-            'Linear': Linear,
             'PatchTST': PatchTST,
             'MyTransformer': my_transformer,
-            'MyConvLinear': my_conv_linear,
-            # 'MyConvLinear2': my_conv_linear2,
+            # 'MyConvLinear': my_conv_linear,
         }
         model = model_dict[self.args.model].Model(self.args).float()
 
@@ -576,14 +534,9 @@ S
                 inpt    -= sin_x
                 
                 # Metrics
-                # hit_rates_per_signal = self.compute_hit_rate_per_signal(outputs, batch_y)
-                # hit_rates_per_signal = compute_dtw_hit_rate(outputs, batch_y, margin=0.05)
-                
+                            
                 DTW_error_per_signal = compute_dtw(outputs, batch_y)
             
-                # mse_single = np.mean((outputs - batch_y)**2, axis=1)
-                # mse_single = np.mean(np.abs(outputs - batch_y), axis=1) # MAE
-                # nice_signals = (mse_single < mse_threshold)
                 nice_signals = DTW_error_per_signal < mse_threshold
                 
                 pred = outputs  # outputs.detach().cpu().numpy()  # .squeeze()
@@ -592,7 +545,6 @@ S
                 preds.append(pred)
                 trues.append(true)
                 inputx.append(batch_x.detach().cpu().numpy())
-                # inpt = batch_x.detach().cpu().numpy()
                 
                 b = nice_signals.shape[0]
                 s = nice_signals.shape[1]
@@ -691,159 +643,7 @@ S
         # np.save(folder_path + 'true.npy', trues)
         # np.save(folder_path + 'x.npy', inputx)
         return
-    
-    # def accuracy_threshold_plot(self, setting, test=0):
-    #     test_data, test_loader = self._get_data(flag='test')
-    #     mean, var = test_data.scaler.mean_, test_data.scaler.var_
-    #     min_, max_ = test_data.normal.data_min_, test_data.normal.data_max_
-    #     inverse_transform = True
-    #     # print('dataset scaler', test_data.scaler.mean_, test_data.scaler.var_)
 
-    #     if test:
-    #         print('loading model')
-    #         self.model.load_state_dict(torch.load(os.path.join('/home/abgo/SimpleDL/PatchTST/PatchTST_supervised/checkpoints/' + setting, 'checkpoint.pth'), map_location='cuda:0'))
-
-    #     criterion = [self._select_criterion()]
-    #     criterion.append(nn.L1Loss())
-
-    #     mse_threshold = np.arange(0.02, 1.0, 0.01).tolist()
-        
-    #     out_signal_n = self.args.enc_in - self.args.exo if self.args.features == 'M' else 1 
-
-    #     cls_c = [[0] * out_signal_n] * len(mse_threshold) 
-    #     far_c = [[0] * out_signal_n] * len(mse_threshold)
-        
-    #     preds = []
-    #     trues = []
-    #     rains = []
-    #     inputx = []
-    #     folder_path = './test_results/' + 'test_all_DTW_' + setting + '/'
-    #     print(folder_path)
-    #     if not os.path.exists(folder_path):
-    #         os.makedirs(folder_path)
-
-    #     self.model.eval()
-    #     with torch.no_grad():
-    #         for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(test_loader):
-    #             if self.args.exo_future:
-    #                 batch_x, exo_future = batch_x
-    #                 exo_future = exo_future.float().to(self.device)
-    #             print(batch_x.shape, batch_y.shape)
-    #             batch_x = batch_x.float().to(self.device)
-    #             batch_y = batch_y.float().to(self.device)
-
-    #             batch_x_mark = batch_x_mark.float().to(self.device)
-    #             batch_y_mark = batch_y_mark.float().to(self.device)
-
-    #             # decoder input
-    #             dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
-    #             dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
-    #             # encoder - decoder
-    #             if self.args.use_amp:
-    #                 with torch.cuda.amp.autocast():
-    #                     if 'Linear' in self.args.model or 'TST' in self.args.model:
-    #                         outputs = self.model(batch_x)
-    #                     else:
-    #                         if self.args.output_attention:
-    #                             outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
-    #                         else:
-    #                             outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-    #             else:
-    #                 if 'Linear' in self.args.model or 'TST' in self.args.model or 'My' in self.args.model:
-    #                     if self.args.exo_future:
-    #                         outputs = self.model(batch_x, exo_future)
-    #                     else:
-    #                         outputs = self.model(batch_x)
-    #                 else:
-    #                     if self.args.output_attention:
-    #                         outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
-
-    #                     else:
-    #                         outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-
-    #             f_dim = -1 if self.args.features == 'MS' else 0
-
-    #             outputs = outputs[:, -self.args.pred_len:, f_dim:]
-    #             batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
-
-    #             # remove index -2 and -3 if args.exo_future and args.exo are True, but keep the index -1
-    #             # print(self.args.exo_future, self.args.exo)
-    #             if self.args.features == 'M':
-    #                 target = batch_y[:, :, -1:]
-    #                 if self.args.exo:
-    #                     batch_y = batch_y[:, :, :-2]
-    #                     # concatenate the target to the batch_y
-    #                     batch_y = torch.cat((batch_y, target), axis=-1)
-    #                 else:
-    #                     pass
-    #                 assert batch_y.shape[-1] == outputs.shape[-1], f"batch_y shape: {batch_y.shape}, outputs shape: {outputs.shape}, exo {self.args.exo}, exo_future {self.args.exo_future}"
-
-    #             outputs = outputs.detach().cpu().numpy()
-    #             batch_y = batch_y.detach().cpu().numpy()
-                
-    #             DTW_error_per_signal = compute_dtw(outputs, batch_y)
-    #             print(DTW_error_per_signal.shape)
-
-    #             for i, th in enumerate(mse_threshold):
-    #                 nice_signals = DTW_error_per_signal < th
-
-    #                 b = nice_signals.shape[0]
-    #                 s = nice_signals.shape[1]
-    #                 cls_c[i] += nice_signals.sum(axis=0)
-    #                 far_c[i] += b - nice_signals.sum(axis=0)
-                
-    #             # break
-            
-
-    #     all_c = [c + f for c, f in zip(cls_c, far_c)]
-    #     print(all_c)
-    #     print(cls_c)
-    #     print(far_c)
-    #     cls_2all =  [[a/b for a, b in zip(cls_c_i, all_c_i)] for cls_c_i, all_c_i in zip(cls_c, all_c)]
-    #     far_2all =  [[a/b for a, b in zip(far_c_i, all_c_i)] for far_c_i, all_c_i in zip(far_c, all_c)]
-    #     print(('DTW Error, test all, MAE threshold: {}, close samples: {} {}%, far samples:{} {}%, all:{}'.format(mse_threshold, cls_c, cls_2all, far_c, far_2all, all_c)))
-    
-        
-    #     acc = []
-    #     auc_list = []
-    #     auc_normalized_list = []
-    #     for i in range(out_signal_n):
-    #         path_fig = os.path.join(folder_path, f'accuracy_error_plot{i}.pdf')
-    #         path_vec = os.path.join(folder_path, f'accuracy_error_plot{i}.npy')
-    #         print(path_fig)
-    #         acc_i = [cls_i[i] for cls_i in cls_2all]
-    #         # acc.append(acc_i)
-    #         auc, auc_normalized = visual_acc(mse_threshold, acc_i, path_fig)
-    #         auc_list.append(auc)
-    #         auc_normalized_list.append(auc_normalized)
-    #         # np.save(path_vec, np.array([mse_threshold, acc]))
-    #         np.save(path_vec, np.array([mse_threshold, acc_i]))
-    #         # print('auc:', auc)
-    #         # print('auc_normalized:', auc_normalized)
-    #     # print('acc:', acc)
-        
-
-    #     # return
-
-    #     # i = -1
-    #     # acc_i = [cls_i[i] for cls_i in cls_2all]
-        
-    #     # auc, auc_normalized = visual_acc(mse_threshold, acc_i, path_fig)
-    #     # np.save(path_vec, np.array([mse_threshold, acc_i]))
-        
-    #     f = open("result.txt", 'a')
-    #     f.write('Test End Time: {}\n'.format(time.strftime("%Y.%m.%d,%H:%M:%S", time.localtime())))
-    #     f.write('AUC:{}, AUC normalized:{}'.format(auc, auc_normalized))
-    #     f.write('\n')
-    #     f.write('AUC per signal:{}'.format(auc_list))
-    #     f.write('\n')
-    #     f.write('AUC normalized per signal:{}'.format(auc_normalized_list))
-    #     f.write('\n')
-    #     f.write('Folder path: {}'.format(folder_path))
-    #     f.write('\n')
-    #     f.write('\n')
-    #     f.close()
-    #     return
         
     def accuracy_threshold_plot(self, setting, test=0):
         test_data, test_loader = self._get_data(flag='test')

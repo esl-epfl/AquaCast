@@ -1,7 +1,6 @@
 from data_provider.data_factory import data_provider
 from exp.exp_basic import Exp_Basic
-from models import Informer, Autoformer, Transformer, DLinear, Linear, NLinear, PatchTST, my_transformer, my_conv_linear, my_transformer_m2m, my_transformer_m2m_exo
-from models import my_conv_linear2                                          
+from models import Transformer, PatchTST, my_transformer, my_transformer_m2m, my_transformer_m2m_exo
 from utils.tools import EarlyStopping, adjust_learning_rate, visual, test_params_flop, visual_plot, visual_rain, visual_acc
 from utils.metrics import metric
 
@@ -21,42 +20,6 @@ import numpy as np
 warnings.filterwarnings('ignore')
 
 from dtaidistance import dtw
-
-def compute_dtw_hit_rate(outputs, batch_y, margin=0.05):
-    """
-    Computes the DTW-based hit rate for each batch element and signal.
-
-    Parameters:
-    - outputs: numpy array of shape [batch, signal_length, signal_number] (predictions)
-    - batch_y: numpy array of shape [batch, signal_length, signal_number] (ground-truth)
-    - margin: float, absolute tolerance for hit classification
-
-    Returns:
-    - hit_rates: numpy array of shape [batch, signal_number], percentage of hits per batch-signal pair
-    """
-    batch_size, signal_length, num_signals = outputs.shape
-    hit_rates = np.zeros((batch_size, num_signals))  # Store hit rate per batch-signal
-
-    for b in range(batch_size):
-        for s in range(num_signals):
-            # Get the time series for the current batch element and signal
-            pred_signal = outputs[b, :, s]
-            true_signal = batch_y[b, :, s]
-
-            # Compute DTW warping path
-            path = dtw.warping_path(pred_signal, true_signal)
-
-            # Extract aligned pairs
-            aligned_preds = np.array([pred_signal[p[0]] for p in path])
-            aligned_truth = np.array([true_signal[p[1]] for p in path])
-
-            # Compute binary hit flag (1 if within margin, 0 otherwise)
-            hits = np.abs(aligned_preds - aligned_truth) <= margin
-            hit_rate = np.mean(hits) #* 100  # Convert to percentage
-
-            hit_rates[b, s] = hit_rate  # Store result
-
-    return hit_rates
 
 def compute_dtw(outputs, batch_y):
     """
@@ -99,18 +62,11 @@ class Exp_Main_exo(Exp_Basic):
 
     def _build_model(self):
         model_dict = {
-            'Autoformer': Autoformer,
             'Transformer': Transformer,
-            'Informer': Informer,
-            'DLinear': DLinear,
-            'NLinear': NLinear,
-            'Linear': Linear,
             'PatchTST': PatchTST,
             'MyTransformer': my_transformer,
             'MyTransformer_M2M': my_transformer_m2m,
             'MyTransformer_M2M_exo': my_transformer_m2m_exo,
-            'MyConvLinear': my_conv_linear,
-            # 'MyConvLinear2': my_conv_linear2,
         }
         model = model_dict[self.args.model].Model(self.args).float()
 
@@ -624,14 +580,9 @@ class Exp_Main_exo(Exp_Basic):
 
                 
                 # Metrics
-                # hit_rates_per_signal = self.compute_hit_rate_per_signal(outputs, batch_y)
-                # hit_rates_per_signal = compute_dtw_hit_rate(outputs, batch_y, margin=0.05)
                 
                 DTW_error_per_signal = compute_dtw(outputs, batch_y)
             
-                # mse_single = np.mean((outputs - batch_y)**2, axis=1)
-                # mse_single = np.mean(np.abs(outputs - batch_y), axis=1) # MAE
-                # nice_signals = (mse_single < mse_threshold)
                 nice_signals = DTW_error_per_signal < mse_threshold
                 
                 pred = outputs  # outputs.detach().cpu().numpy()  # .squeeze()
@@ -640,7 +591,6 @@ class Exp_Main_exo(Exp_Basic):
                 preds.append(pred)
                 trues.append(true)
                 inputx.append(batch_x.detach().cpu().numpy())
-                # inpt = batch_x.detach().cpu().numpy()
                 
                 b = nice_signals.shape[0]
                 s = nice_signals.shape[1]
