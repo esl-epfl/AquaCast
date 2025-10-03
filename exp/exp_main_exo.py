@@ -1,6 +1,6 @@
 from data_provider.data_factory import data_provider
 from exp.exp_basic import Exp_Basic
-from models import PatchTST, my_transformer_m2m, my_transformer_m2m_exo
+from models import PatchTST, my_transformer_m2m_exo
 from utils.tools import EarlyStopping, adjust_learning_rate, visual, test_params_flop, visual_plot, visual_rain, visual_acc
 from utils.metrics import metric
 
@@ -28,7 +28,6 @@ class Exp_Main_exo(Exp_Basic):
     def _build_model(self):
         model_dict = {
             'PatchTST': PatchTST,
-            'MyTransformer_M2M': my_transformer_m2m,
             'MyTransformer_M2M_exo': my_transformer_m2m_exo,
         }
         model = model_dict[self.args.model].Model(self.args).float()
@@ -438,7 +437,7 @@ class Exp_Main_exo(Exp_Basic):
         rains = []
         inputx = []
 
-        folder_path = './test_results_publish/' + 'test_all_DTW_' + setting + '/'
+        folder_path = './test_results/' + 'test_all_DTW_' + setting + '/'
         print(folder_path)
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
@@ -532,10 +531,8 @@ class Exp_Main_exo(Exp_Basic):
                 cls_c += nice_signals.sum(axis=0)
                 far_c += b - nice_signals.sum(axis=0)
 
-                for b in [0]: #batch elements 0, 15, 48, 128
-                # for b in range(inpt.shape[0]): #batch elements
-                    for s in range(1): #signal number
-                    # for s in range(inpt.shape[-1]): #signal number
+                for b in [0]: #batch elements e.g. [0, 15, 48, 128] or range(inpt.shape[0])
+                    for s in range(1): #signal number. or range(inpt.shape[-1]). for MS it should be only the target signal with index 0
                         gt = np.concatenate((inpt[b, :, -1], true[b, :, -1]), axis=0)
                         pd = np.concatenate((inpt[b, :, -1], pred[b, :, -1]), axis=0)
                         mse = np.mean((pred[b, :, -1] - true[b, :, -1])**2) # only for the forecasted part
@@ -547,29 +544,15 @@ class Exp_Main_exo(Exp_Basic):
                             rn = np.concatenate((rain[b, :], rain_y[b, :]), axis=0)
                         else:
                             rn = rain[b, :]
-                        # print(rn.shape, rain.shape, rain_y.shape)
+                        
                         if inverse_transform:
-                            #only for synthesized data
-                            # print(gt.shape)
-                            # print(sin.shape)
-                            # gt = gt - sin
-                            # pd = pd - sin
                             # reverse the standardization transform
                             gt = gt * var[-1] + mean[-1]
                             pd = pd * var[-1] + mean[-1]
                             if rn is not None:
                                 rn = rn * var[rain_index] + mean[rain_index]
-                            # gt = (gt - min_[s])/ (max_[s] - min_[s])
-                            # pd = (pd - min_[s])/ (max_[s] - min_[s])
-                            # rn = (rn - min_[-3])/ (max_[-3] - min_[-3])
-                            # pd = (pd - gt.min())/ (gt.max() - gt.min()+1e-8) 
-                            # gt = (gt - gt.min())/ (gt.max() - gt.min()+1e-8)
-                            # rn = (rn - rn.min())/ (rn.max() - rn.min()+1e-8)
-                        # if hit_rates_per_signal[b,s] >= hit_threshold:
-                        if DTW_error_per_signal[b,s] < mse_threshold:
-                            path = os.path.join(folder_path, f'cls_{s}_mae{DTW_error_per_signal[b,s].item():.5f}_{i}_{b}.pdf') # close predictions are good samples,  {i}_{b}_{s}: batch number, batch element, signal
-                        else:
-                            path = os.path.join(folder_path, f'far_{s}_mae{DTW_error_per_signal[b,s].item():.5f}_{i}_{b}.pdf') # far predictions are bad samples,     {i}_{b}_{s}: batch number, batch element, signal
+
+                        path = os.path.join(folder_path, f'plot_{s}_{DTW_error_per_signal[b,s].item():.5f}_{i}_{b}.pdf') # {i}_{b}_{s}: batch number, batch element, signal
                         # visual(gt, pd, path) 
                         arr = np.array([gt, pd, rn], dtype=object)
                         np.save(path.replace('.pdf', '.npy'), arr)

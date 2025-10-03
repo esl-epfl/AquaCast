@@ -17,6 +17,28 @@ python -m venv .venv && source .venv/bin/activate   # or conda
 pip install -r requirements.txt
 ```
 
+## Dataset Style
+Dataset structure for time-series forecasting in CSV columns' format
+
+1. only endogenous time-series
+
+    date, node1, node2, ...
+
+2. Including endogenous time-series history
+
+    date, node1, node2, ..., rain
+
+3. using perfect exogenous forecast
+
+    a. AquaCast
+
+        date, node1, node2, ..., rain
+
+    b. PatchTST (rain_forecast_steps should be equal to history steps)
+    
+        date, node1, node2, ..., rain, rain_forecast_steps
+
+
 
 ## Acknowledgement
 

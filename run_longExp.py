@@ -194,7 +194,7 @@ if __name__ == '__main__':
 
         exp = Exp(args)  # set experiments
         print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
-        # exp.test_all(setting, test=1)
-        exp.accuracy_threshold_plot(setting, test=1)
+        exp.test_all(setting, test=1)
+        # exp.accuracy_threshold_plot(setting, test=1)
         torch.cuda.empty_cache()
         
