@@ -51,7 +51,7 @@ do
         --head_dropout 0\
         --patch_len 16\
         --stride 8\
-        --des 'Exp' \
+        --des 'Exp_exo' \
         --train_epochs 100\
         --patience 20\
         --itr 1 --batch_size 32 --learning_rate 0.0001 --gpu 0 > logs/synthesized_"$data_version"/$target_node/$model_name'_'$model_id_name'_'$seq_len'_'$pred_len'_ftr'$features'_dm'$d_model'_dff'$d_ff.log 
@@ -105,7 +105,7 @@ do
         --head_dropout 0\
         --patch_len 16\
         --stride 8\
-        --des 'Exp' \
+        --des 'Exp_exo' \
         --train_epochs 100\
         --patience 20\
         --itr 1 --batch_size 32 --learning_rate 0.0001 --gpu 0 > logs/synthesized_"$data_version"/$target_node/$model_name'_'$model_id_name'_'$seq_len'_'$pred_len'_ftr'$features'_dm'$d_model'_dff'$d_ff.log 
@@ -159,7 +159,7 @@ do
         --head_dropout 0\
         --patch_len 16\
         --stride 8\
-        --des 'Exp' \
+        --des 'Exp_exo' \
         --train_epochs 100\
         --patience 20\
         --itr 1 --batch_size 32 --learning_rate 0.0001 --gpu 0 > logs/synthesized_"$data_version"/$target_node/$model_name'_'$model_id_name'_'$seq_len'_'$pred_len'_ftr'$features'_dm'$d_model'_dff'$d_ff.log 
