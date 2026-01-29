@@ -1,44 +1,84 @@
-# My New Repo
-
-Synth & real *Data versions* and names tables
-
-Build the docker image:
-docker build -t synth:latest .
-
 # AquaCast — Transformer-based Time-Series Forecasting (Research Code)
 
-**What:** DL models (MyTransformer, PatchTST variants) for multi-variate, multi-horizon forecasting.  
-**Paper / Preprint:** (add link)  
-**Status:** Research code; reproducible on a tiny synthetic/sample dataset. Real/partner data is **not** included.
+Deep learning models for **multi-variate, multi-horizon time-series forecasting**, with a focus on urban water and hydrological dynamics.
 
-## Install
+This repository contains:
+- Research code for **AquaCast**, and **PatchTST**
+- Synthesized datasets for public reproducibility
+- Scripts and Docker support for controlled experimentation
+
+---
+
+## 📄 Paper / Preprint
+
+**AquaCast: Precipitation-Informed Transformer for Urban Water Dynamics Forecasting**  
+arXiv: https://arxiv.org/abs/2509.09458  
+
+**Status:**  
+This work is **submitted and currently under revision**.  
+(The arXiv version should be cited when referring to this repository.)
+
+---
+
+## 🧪 Repository Status
+
+- **Research code**
+- Fully reproducible on **synthetic datasets**
+- **Real-world and partner datasets are not included** due to non-disclosure agreements (NDAs)
+
+---
+
+## 📁 Data Overview
+
+This repository includes **synthetic and real data *schemas*** (names and versions only).
+
+- Synthesized datasets:  
+  `AquaCast/Data/`  
+  (see `AquaCast/Data/README.md` for full documentation)
+
+---
+
+## 🐳 Docker
+
+To build the Docker image:
+
+```bash
+docker build -t synth:latest .
+```
+
+## Install (local)
 ```bash
 python -m venv .venv && source .venv/bin/activate   # or conda
 pip install -r requirements.txt
 ```
 
-## Dataset Style
-Dataset structure for time-series forecasting in CSV columns' format
+## ▶️ Running Experiments
 
-1. only endogenous time-series
+All experiments are executed via bash scripts located under the scripts/ directory,
+organized by model.
 
-    date, node1, node2, ...
-
-2. Including endogenous time-series history
-
-    date, node1, node2, ..., rain
-
-3. using perfect exogenous forecast
-
-    a. AquaCast
-
-        date, node1, node2, ..., rain
-
-    b. PatchTST (rain_forecast_steps should be equal to history steps)
-    
-        date, node1, node2, ..., rain, rain_forecast_steps
-
-
+To run any experiment, use the following command pattern:
+```bash
+bash scripts/[model]/[script].sh
+```
+Examples:
+```bash
+bash scripts/AquaCast/synthesized.sh
+bash scripts/PatchTST/traiLausanneCity.sh
+```
+## Citation
+If you use this repository, code, or synthesized datasets in academic work, please cite:
+```bibtex
+@misc{abdollahinejad2025aquacast,
+  title         = {AquaCast: Precipitation-Informed Transformer for Urban Water Dynamics Forecasting},
+  author        = {AbdollahiNejad, Golnoosh and collaborators},
+  year          = {2025},
+  eprint        = {2509.09458},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG},
+  note          = {Submitted, under revision}
+}
+```
 
 ## Acknowledgement
 
