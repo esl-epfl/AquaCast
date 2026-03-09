@@ -16,6 +16,7 @@ import time
 import warnings
 import matplotlib.pyplot as plt
 import numpy as np
+import wandb
 
 warnings.filterwarnings('ignore')
 
@@ -247,6 +248,13 @@ class Exp_Main_exo(Exp_Basic):
             vali_loss = self.vali(vali_data, vali_loader, criterion)
             test_loss = self.vali(test_data, test_loader, criterion)
 
+            # weights and biases logging
+            wandb.log({
+                "train_loss": train_loss,
+                "val_loss": vali_loss,
+                "test_loss": test_loss,
+            })
+
             #save records of training losses
             train_plot.append(train_loss)
             valid_plot.append(vali_loss)
@@ -391,6 +399,12 @@ class Exp_Main_exo(Exp_Basic):
         f.write('\n')
         f.write('\n')
         f.close()
+
+        # weights and biases logging
+        wandb.log({
+            "test_mse": mse,
+            "test_mae": mae
+        })
 
         # np.save(folder_path + 'metrics.npy', np.array([mae, mse, rmse, mape, mspe,rse, corr]))
         # np.save(folder_path + 'pred.npy', preds)

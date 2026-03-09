@@ -4,6 +4,7 @@ import torch
 from exp.exp_main_exo import Exp_Main_exo
 import random
 import numpy as np
+import wandb
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Autoformer & Transformer family for Time Series Forecasting')
@@ -96,6 +97,12 @@ if __name__ == '__main__':
     parser.add_argument('--test_flop', action='store_true', default=False, help='See utils/tools for usage')
 
     args = parser.parse_args()
+
+    #weights and biases initialization
+    wandb.init(
+        project="aquacast-history-length",
+        config=vars(args)
+    )
 
     # random seed
     fix_seed = args.random_seed
