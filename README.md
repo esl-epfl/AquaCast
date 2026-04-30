@@ -3,7 +3,7 @@
 Deep learning models for **multi-variate, multi-horizon time-series forecasting**, with a focus on urban water and hydrological dynamics.
 
 This repository contains:
-- Research code for **AquaCast**, and **PatchTST**
+- Research code for **AquaCast**
 - Synthesized datasets for public reproducibility
 - Scripts and Docker support for controlled experimentation
 
