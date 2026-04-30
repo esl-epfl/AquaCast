@@ -12,11 +12,9 @@ This repository contains:
 ## 📄 Paper / Preprint
 
 **AquaCast: Precipitation-Informed Transformer for Urban Water Dynamics Forecasting**  
-arXiv: https://arxiv.org/abs/2509.09458  
 
 **Status:**  
-This work is **submitted and currently under revision**.  
-(The arXiv version should be cited when referring to this repository.)
+This work is accepted at Journal of Hydrology, Feb 2026.  
 
 ---
 
